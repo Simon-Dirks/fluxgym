@@ -356,24 +356,6 @@ def gen_sh(
         line_break = "^"
         file_type = "bat"
 
-    ############# Sample args ########################
-    sample = ""
-    if len(sample_prompts) > 0:
-        # Default to sampling every 500 steps if sample prompts are provided
-        sample = f"""--sample_prompts={sample_prompts_path} --sample_every_n_steps=500 {line_break}"""
-
-
-    ############# Optimizer args ########################
-    # Default high VRAM settings
-    optimizer = f"--optimizer_type adamw8bit {line_break}"
-
-
-    #######################################################
-    # Hardcoded model paths for runwayml/stable-diffusion-v1-5
-    pretrained_model_path = BASE_MODEL
-    clip_path = resolve_path("models/clip/clip_l.safetensors")
-    t5_path = resolve_path("models/clip/t5xxl_fp16.safetensors")
-    ae_path = resolve_path("models/vae/ae.sft")
     sh = f"""accelerate launch \
 --dynamo_backend no \
 --dynamo_mode default \
@@ -382,9 +364,6 @@ def gen_sh(
 --num_machines 1 \
 --num_cpu_threads_per_process 2 sd-scripts/train_network.py \
 --config_file {resolve_path(f"outputs/{output_name}/dataset.toml")} {line_break}"""
-   
-
-
 
     return sh
 
