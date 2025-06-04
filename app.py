@@ -308,31 +308,7 @@ def recursive_update(d, u):
             d[k] = v
     return d
 
-def download():
-    # download vae
-    vae_folder = "models/vae"
-    vae_path = os.path.join(vae_folder, "ae.sft")
-    if not os.path.exists(vae_path):
-        os.makedirs(vae_folder, exist_ok=True)
-        gr.Info(f"Downloading vae")
-        print(f"downloading ae.sft...")
-        hf_hub_download(repo_id="cocktailpeanut/xulf-dev", local_dir=vae_folder, filename="ae.sft")
 
-    # download clip
-    clip_folder = "models/clip"
-    clip_l_path = os.path.join(clip_folder, "clip_l.safetensors")
-    if not os.path.exists(clip_l_path):
-        os.makedirs(clip_folder, exist_ok=True)
-        gr.Info(f"Downloading clip...")
-        print(f"download clip_l.safetensors")
-        hf_hub_download(repo_id="comfyanonymous/flux_text_encoders", local_dir=clip_folder, filename="clip_l.safetensors")
-
-    # download t5xxl
-    t5xxl_path = os.path.join(clip_folder, "t5xxl_fp16.safetensors")
-    if not os.path.exists(t5xxl_path):
-        print(f"download t5xxl_fp16.safetensors")
-        gr.Info(f"Downloading t5xxl...")
-        hf_hub_download(repo_id="comfyanonymous/flux_text_encoders", local_dir=clip_folder, filename="t5xxl_fp16.safetensors")
 
 
 def resolve_path(p):
@@ -471,8 +447,6 @@ def start_training(
     output_dir = resolve_path_without_quotes(f"outputs/{output_name}")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-
-    download()
 
     file_type = "sh"
     if sys.platform == "win32":
