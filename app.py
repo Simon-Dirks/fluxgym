@@ -386,13 +386,12 @@ def gen_sh(
     save_every_n_epochs,
     timestep_sampling,
     guidance_scale,
-    vram,
     sample_prompts,
     sample_every_n_steps,
     *advanced_components
 ):
 
-    print(f"gen_sh: network_dim:{network_dim}, max_train_epochs={max_train_epochs}, save_every_n_epochs={save_every_n_epochs}, timestep_sampling={timestep_sampling}, guidance_scale={guidance_scale}, vram={vram}, sample_prompts={sample_prompts}, sample_every_n_steps={sample_every_n_steps}")
+    print(f"gen_sh: network_dim:{network_dim}, max_train_epochs={max_train_epochs}, save_every_n_epochs={save_every_n_epochs}, timestep_sampling={timestep_sampling}, guidance_scale={guidance_scale}, sample_prompts={sample_prompts}, sample_every_n_steps={sample_every_n_steps}")
 
     output_dir = resolve_path(f"outputs/{output_name}")
     sample_prompts_path = resolve_path(f"outputs/{output_name}/sample_prompts.txt")
@@ -410,30 +409,9 @@ def gen_sh(
 
 
     ############# Optimizer args ########################
-#    if vram == "8G":
-#        optimizer = f"""--optimizer_type adafactor {line_break}
-#    --optimizer_args "relative_step=False" "scale_parameter=False" "warmup_init=False" {line_break}
-#        --split_mode {line_break}
-#        --network_args "train_blocks=single" {line_break}
-#        --lr_scheduler constant_with_warmup {line_break}
-#        --max_grad_norm 0.0 {line_break}"""
-    if vram == "16G":
-        # 16G VRAM
-        optimizer = f"""--optimizer_type adafactor {line_break}
   --optimizer_args "relative_step=False" "scale_parameter=False" "warmup_init=False" {line_break}
-  --lr_scheduler constant_with_warmup {line_break}
-  --max_grad_norm 0.0 {line_break}"""
-    elif vram == "12G":
-      # 12G VRAM
-        optimizer = f"""--optimizer_type adafactor {line_break}
-  --optimizer_args "relative_step=False" "scale_parameter=False" "warmup_init=False" {line_break}
-  --split_mode {line_break}
-  --network_args "train_blocks=single" {line_break}
-  --lr_scheduler constant_with_warmup {line_break}
-  --max_grad_norm 0.0 {line_break}"""
-    else:
-        # 20G+ VRAM
-        optimizer = f"--optimizer_type adamw8bit {line_break}"
+    # Default high VRAM settings
+    optimizer = f"--optimizer_type adamw8bit {line_break}"
 
 
     #######################################################
@@ -652,7 +630,6 @@ def update(
     save_every_n_epochs,
     timestep_sampling,
     guidance_scale,
-    vram,
     num_repeats,
     sample_prompts,
     sample_every_n_steps,
@@ -672,7 +649,6 @@ def update(
         save_every_n_epochs,
         timestep_sampling,
         guidance_scale,
-        vram,
         sample_prompts,
         sample_every_n_steps,
         *advanced_components,
@@ -726,7 +702,6 @@ def init_advanced():
         'cache_text_encoder_outputs',
         'cache_text_encoder_outputs_to_disk',
         'fp8_base',
-        'highvram',
         'max_train_epochs',
         'save_every_n_epochs',
         'dataset_config',
@@ -922,7 +897,7 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                     model_names = list(models.keys())
                     print(f"model_names={model_names}")
                     base_model = gr.Dropdown(label="Base model (edit the models.yaml file to add more to this list)", choices=model_names, value=model_names[0])
-                    vram = gr.Radio(["20G", "16G", "12G" ], value="20G", label="VRAM", interactive=True)
+
                     num_repeats = gr.Number(value=10, precision=0, label="Repeat trains per image", interactive=True)
                     max_train_epochs = gr.Number(label="Max Train Epochs", value=16, interactive=True)
                     total_steps = gr.Number(0, interactive=False, label="Expected training steps")
@@ -1052,7 +1027,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
         save_every_n_epochs,
         timestep_sampling,
         guidance_scale,
-        vram,
         num_repeats,
         sample_prompts,
         sample_every_n_steps,
