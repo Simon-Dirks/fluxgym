@@ -548,7 +548,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
             output_components = []
             with gr.Row():
                 gr.HTML("""<nav>
-            <img id='logo' src='/file=icon.png' width='80' height='80'>
             <div class='flexible'></div>
             <button id='autoscroll' class='on hidden'></button>
         </nav>
