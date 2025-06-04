@@ -484,6 +484,7 @@ nav img.rotate { animation: rotate 2s linear infinite; }
 #terminal .generating { border: none !important; }
 #terminal label { position: absolute !important; }
 .tabs { margin-top: 50px; }
+.tab-wrapper { display: none !important; }
 .hidden { display: none !important; }
 .codemirror-wrapper .cm-line { font-size: 12px !important; }
 label { font-weight: bold !important; }
