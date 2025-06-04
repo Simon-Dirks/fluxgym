@@ -466,22 +466,70 @@ def gen_toml(
   dataset_folder,
   resolution,
   class_tokens,
-  num_repeats
+  num_repeats,
+  max_train_epochs,
+  save_every_n_epochs,
+  output_name
 ):
-    toml = f"""[general]
-shuffle_caption = false
-caption_extension = '.txt'
-keep_tokens = 1
-
-[[datasets]]
-resolution = {resolution}
-batch_size = 1
-keep_tokens = 1
-
-  [[datasets.subsets]]
-  image_dir = '{resolve_path_without_quotes(dataset_folder)}'
-  class_tokens = '{class_tokens}'
-  num_repeats = {num_repeats}"""
+    # Calculate max_train_steps based on num_repeats and number of images
+    # This will be updated later in update_total_steps function
+    try:
+        import os
+        num_images = len([f for f in os.listdir(dataset_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.bmp'))])
+        max_train_steps = num_images * num_repeats * max_train_epochs
+    except:
+        max_train_steps = 1600  # Default fallback
+    
+    output_dir = f"outputs/{output_name}"
+    
+    toml = f"""bucket_no_upscale = true
+bucket_reso_steps = 64
+cache_latents = true
+caption_extension = \".txt\"
+clip_skip = 1
+dynamo_backend = \"no\"
+enable_bucket = true
+epoch = 1
+gradient_accumulation_steps = 1
+huber_c = 0.1
+huber_scale = 1
+huber_schedule = \"snr\"
+loss_type = \"l2\"
+lr_scheduler = \"cosine\"
+lr_scheduler_args = []
+lr_scheduler_num_cycles = 1
+lr_scheduler_power = 1
+lr_warmup_steps = 0.1
+max_bucket_reso = 2048
+max_data_loader_n_workers = 0
+max_grad_norm = 1
+max_timestep = 1000
+max_token_length = 75
+max_train_steps = {max_train_steps}
+min_bucket_reso = 256
+mixed_precision = \"fp16\"
+network_alpha = 1
+network_args = []
+network_dim = 8
+network_module = \"networks.lora\"
+network_train_unet_only = true
+noise_offset_type = \"Original\"
+optimizer_args = []
+optimizer_type = \"AdamW8bit\"
+output_dir = \"{output_dir}\"
+output_name = \"{output_name}\"
+pretrained_model_name_or_path = \"runwayml/stable-diffusion-v1-5\"
+prior_loss_weight = 1
+resolution = \"{resolution},{resolution}\"
+sample_sampler = \"euler_a\"
+save_every_n_epochs = {save_every_n_epochs}
+save_model_as = \"safetensors\"
+save_precision = \"fp16\"
+text_encoder_lr = []
+train_batch_size = 1
+train_data_dir = \"{resolve_path_without_quotes(dataset_folder)}\"
+unet_lr = 0.0001
+wandb_run_name = \"{output_name}\""""
     return toml
 
 def update_total_steps(max_train_epochs, num_repeats, images):
@@ -630,7 +678,10 @@ def update(
         dataset_folder,
         resolution,
         class_tokens,
-        num_repeats
+        num_repeats,
+        max_train_epochs,
+        save_every_n_epochs,
+        output_name
     )
     return gr.update(value=sh), gr.update(value=toml), dataset_folder
 
