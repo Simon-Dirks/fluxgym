@@ -25,73 +25,6 @@ MAX_IMAGES = 150
 BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 RESOLUTION = 512
 
-
-def readme(lora_name, instance_prompt, sample_prompts):
-
-    # model license
-    # tags
-    tags = [ "text-to-image", "flux", "lora", "diffusers", "template:sd-lora", "fluxgym" ]
-    license_str = ""
-    base_model_name = BASE_MODEL
-    # widgets
-    widgets = []
-    sample_image_paths = []
-    output_name = slugify(lora_name)
-    samples_dir = resolve_path_without_quotes(f"outputs/{output_name}/sample")
-    try:
-        for filename in os.listdir(samples_dir):
-            # Filename Schema: [name]_[steps]_[index]_[timestamp].png
-            match = re.search(r"_(\d+)_(\d+)_(\d+)\.png$", filename)
-            if match:
-                steps, index, timestamp = int(match.group(1)), int(match.group(2)), int(match.group(3))
-                sample_image_paths.append((steps, index, f"sample/{filename}"))
-
-        # Sort by numeric index
-        sample_image_paths.sort(key=lambda x: x[0], reverse=True)
-
-        final_sample_image_paths = sample_image_paths[:len(sample_prompts)]
-        final_sample_image_paths.sort(key=lambda x: x[1])
-        for i, prompt in enumerate(sample_prompts):
-            _, _, image_path = final_sample_image_paths[i]
-            widgets.append(
-                {
-                    "text": prompt,
-                    "output": {
-                        "url": image_path
-                    },
-                }
-            )
-    except:
-        print(f"no samples")
-    dtype = "torch.bfloat16"
-    # Construct the README content
-    readme_content = f"""---
-tags:
-{yaml.dump(tags, indent=4).strip()}
-{"widget:" if os.path.isdir(samples_dir) else ""}
-{yaml.dump(widgets, indent=4).strip() if widgets else ""}
-base_model: {base_model_name}
-{"instance_prompt: " + instance_prompt if instance_prompt else ""}
-{license_str}
----
-
-# {lora_name}
-
-A Flux LoRA trained on a local computer with [Fluxgym](https://github.com/cocktailpeanut/fluxgym)
-
-<Gallery />
-
-## Trigger words
-
-{"You should use `" + instance_prompt + "` to trigger the image generation." if instance_prompt else "No trigger words defined."}
-
-## Download model and use it with ComfyUI, AUTOMATIC1111, SD.Next, Invoke AI, Forge, etc.
-
-Weights for this model are available in Safetensors format.
-
-"""
-    return readme_content
-
 def account_hf():
     try:
         with open("HF_TOKEN", "r") as file:
@@ -484,20 +417,6 @@ def start_training(
     gr.Info(f"Started training")
     yield from runner.run_command([command], cwd=cwd)
     yield runner.log(f"Runner: {runner}")
-
-    # Generate Readme
-    config = toml.loads(train_config)
-    concept_sentence = config['datasets'][0]['subsets'][0]['class_tokens']
-    print(f"concept_sentence={concept_sentence}")
-    print(f"lora_name {lora_name}, concept_sentence={concept_sentence}, output_name={output_name}")
-    sample_prompts_path = resolve_path_without_quotes(f"outputs/{output_name}/sample_prompts.txt")
-    with open(sample_prompts_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-    sample_prompts = [line.strip() for line in lines if len(line.strip()) > 0 and line[0] != "#"]
-    md = readme(lora_name, concept_sentence, sample_prompts)
-    readme_path = resolve_path_without_quotes(f"outputs/{output_name}/README.md")
-    with open(readme_path, "w", encoding="utf-8") as f:
-        f.write(md)
 
     gr.Info(f"Training Complete. Check the outputs folder for the LoRA files.", duration=None)
 
