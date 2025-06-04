@@ -382,16 +382,15 @@ def gen_sh(
     workers,
     learning_rate,
     network_dim,
-    max_train_epochs,
     save_every_n_epochs,
     timestep_sampling,
     guidance_scale,
     sample_prompts,
-    sample_every_n_steps,
+    max_train_steps,
     *advanced_components
 ):
 
-    print(f"gen_sh: network_dim:{network_dim}, max_train_epochs={max_train_epochs}, save_every_n_epochs={save_every_n_epochs}, timestep_sampling={timestep_sampling}, guidance_scale={guidance_scale}, sample_prompts={sample_prompts}, sample_every_n_steps={sample_every_n_steps}")
+    print(f"gen_sh: network_dim:{network_dim}, max_train_steps={max_train_steps}, save_every_n_epochs={save_every_n_epochs}, timestep_sampling={timestep_sampling}, guidance_scale={guidance_scale}, sample_prompts={sample_prompts}")
 
     output_dir = resolve_path(f"outputs/{output_name}")
     sample_prompts_path = resolve_path(f"outputs/{output_name}/sample_prompts.txt")
@@ -404,8 +403,9 @@ def gen_sh(
 
     ############# Sample args ########################
     sample = ""
-    if len(sample_prompts) > 0 and sample_every_n_steps > 0:
-        sample = f"""--sample_prompts={sample_prompts_path} --sample_every_n_steps="{sample_every_n_steps}" {line_break}"""
+    if len(sample_prompts) > 0:
+        # Default to sampling every 500 steps if sample prompts are provided
+        sample = f"""--sample_prompts={sample_prompts_path} --sample_every_n_steps=500 {line_break}"""
 
 
     ############# Optimizer args ########################
@@ -466,19 +466,10 @@ def gen_toml(
   dataset_folder,
   resolution,
   class_tokens,
-  num_repeats,
-  max_train_epochs,
   save_every_n_epochs,
-  output_name
+  output_name,
+  max_train_steps
 ):
-    # Calculate max_train_steps based on num_repeats and number of images
-    # This will be updated later in update_total_steps function
-    try:
-        import os
-        num_images = len([f for f in os.listdir(dataset_folder) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.bmp'))])
-        max_train_steps = num_images * num_repeats * max_train_epochs
-    except:
-        max_train_steps = 1600  # Default fallback
     
     output_dir = f"outputs/{output_name}"
     
@@ -532,14 +523,6 @@ unet_lr = 0.0001
 wandb_run_name = \"{output_name}\""""
     return toml
 
-def update_total_steps(max_train_epochs, num_repeats, images):
-    try:
-        num_images = len(images)
-        total_steps = max_train_epochs * num_images * num_repeats
-        print(f"max_train_epochs={max_train_epochs} num_images={num_images}, num_repeats={num_repeats}, total_steps={total_steps}")
-        return gr.update(value = total_steps)
-    except:
-        print("")
 
 def set_repo(lora_rows):
     selected_name = os.path.basename(lora_rows)
@@ -647,13 +630,11 @@ def update(
     class_tokens,
     learning_rate,
     network_dim,
-    max_train_epochs,
     save_every_n_epochs,
     timestep_sampling,
     guidance_scale,
-    num_repeats,
     sample_prompts,
-    sample_every_n_steps,
+    max_train_steps,
     *advanced_components,
 ):
     output_name = slugify(lora_name)
@@ -666,22 +647,20 @@ def update(
         workers,
         learning_rate,
         network_dim,
-        max_train_epochs,
         save_every_n_epochs,
         timestep_sampling,
         guidance_scale,
         sample_prompts,
-        sample_every_n_steps,
+        max_train_steps,
         *advanced_components,
     )
     toml = gen_toml(
         dataset_folder,
         resolution,
         class_tokens,
-        num_repeats,
-        max_train_epochs,
         save_every_n_epochs,
-        output_name
+        output_name,
+        max_train_steps
     )
     return gr.update(value=sh), gr.update(value=toml), dataset_folder
 
@@ -726,7 +705,6 @@ def init_advanced():
         'cache_text_encoder_outputs',
         'cache_text_encoder_outputs_to_disk',
         'fp8_base',
-        'max_train_epochs',
         'save_every_n_epochs',
         'dataset_config',
         'output_dir',
@@ -740,7 +718,6 @@ def init_advanced():
         'optimizer_args',
         'lr_scheduler',
         'sample_prompts',
-        'sample_every_n_steps',
         'max_grad_norm',
         'split_mode',
         'network_args'
@@ -922,11 +899,8 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                     print(f"model_names={model_names}")
                     base_model = gr.Dropdown(label="Base model (edit the models.yaml file to add more to this list)", choices=model_names, value=model_names[0])
 
-                    num_repeats = gr.Number(value=10, precision=0, label="Repeat trains per image", interactive=True)
-                    max_train_epochs = gr.Number(label="Max Train Epochs", value=16, interactive=True)
-                    total_steps = gr.Number(0, interactive=False, label="Expected training steps")
+                    max_train_steps = gr.Number(value=1600, precision=0, label="Max Train Steps", interactive=True)
                     sample_prompts = gr.Textbox("", lines=5, label="Sample Image Prompts (Separate with new lines)", interactive=True)
-                    sample_every_n_steps = gr.Number(0, precision=0, label="Sample Image Every N Steps", interactive=True)
                     resolution = gr.Number(value=512, precision=0, label="Resize dataset images")
                 with gr.Column():
                     gr.Markdown(
@@ -1047,13 +1021,11 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
         concept_sentence,
         learning_rate,
         network_dim,
-        max_train_epochs,
         save_every_n_epochs,
         timestep_sampling,
         guidance_scale,
-        num_repeats,
         sample_prompts,
-        sample_every_n_steps,
+        max_train_steps,
         *advanced_components
     ]
     advanced_component_ids = [x.elem_id for x in advanced_components]
@@ -1071,31 +1043,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
     images.clear(
         hide_captioning,
         outputs=[captioning_area, start]
-    )
-    max_train_epochs.change(
-        fn=update_total_steps,
-        inputs=[max_train_epochs, num_repeats, images],
-        outputs=[total_steps]
-    )
-    num_repeats.change(
-        fn=update_total_steps,
-        inputs=[max_train_epochs, num_repeats, images],
-        outputs=[total_steps]
-    )
-    images.upload(
-        fn=update_total_steps,
-        inputs=[max_train_epochs, num_repeats, images],
-        outputs=[total_steps]
-    )
-    images.delete(
-        fn=update_total_steps,
-        inputs=[max_train_epochs, num_repeats, images],
-        outputs=[total_steps]
-    )
-    images.clear(
-        fn=update_total_steps,
-        inputs=[max_train_epochs, num_repeats, images],
-        outputs=[total_steps]
     )
     concept_sentence.change(fn=update_sample, inputs=[concept_sentence], outputs=sample_prompts)
     start.click(fn=create_dataset, inputs=[dataset_folder, resolution, images] + caption_list, outputs=dataset_folder).then(
