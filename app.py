@@ -22,36 +22,16 @@ import train_network
 import toml
 import re
 MAX_IMAGES = 150
+BASE_MODEL = "runwayml/stable-diffusion-v1-5"
 
-with open('models.yaml', 'r') as file:
-    models = yaml.safe_load(file)
 
-def readme(base_model, lora_name, instance_prompt, sample_prompts):
+def readme(lora_name, instance_prompt, sample_prompts):
 
     # model license
-    model_config = models[base_model]
-    model_file = model_config["file"]
-    base_model_name = model_config["base"]
-    license = None
-    license_name = None
-    license_link = None
-    license_items = []
-    if "license" in model_config:
-        license = model_config["license"]
-        license_items.append(f"license: {license}")
-    if "license_name" in model_config:
-        license_name = model_config["license_name"]
-        license_items.append(f"license_name: {license_name}")
-    if "license_link" in model_config:
-        license_link = model_config["license_link"]
-        license_items.append(f"license_link: {license_link}")
-    license_str = "\n".join(license_items)
-    print(f"license_items={license_items}")
-    print(f"license_str = {license_str}")
-
     # tags
     tags = [ "text-to-image", "flux", "lora", "diffusers", "template:sd-lora", "fluxgym" ]
-
+    license_str = ""
+    base_model_name = BASE_MODEL
     # widgets
     widgets = []
     sample_image_paths = []
@@ -154,7 +134,7 @@ def login_hf(hf_token):
         print(f"incorrect hf_token")
         return gr.update(), gr.update(), gr.update(), gr.update()
 
-def upload_hf(base_model, lora_rows, repo_owner, repo_name, repo_visibility, hf_token):
+def upload_hf(lora_rows, repo_owner, repo_name, repo_visibility, hf_token):
     src = lora_rows
     repo_id = f"{repo_owner}/{repo_name}"
     gr.Info(f"Uploading to Huggingface. Please Stand by...", duration=None)
@@ -322,23 +302,7 @@ def recursive_update(d, u):
             d[k] = v
     return d
 
-def download(base_model):
-    model = models[base_model]
-    model_file = model["file"]
-    repo = model["repo"]
-
-    # download unet
-    if base_model == "flux-dev" or base_model == "flux-schnell":
-        unet_folder = "models/unet"
-    else:
-        unet_folder = f"models/unet/{repo}"
-    unet_path = os.path.join(unet_folder, model_file)
-    if not os.path.exists(unet_path):
-        os.makedirs(unet_folder, exist_ok=True)
-        gr.Info(f"Downloading base model: {base_model}. Please wait. (You can check the terminal for the download progress)", duration=None)
-        print(f"download {base_model}")
-        hf_hub_download(repo_id=repo, local_dir=unet_folder, filename=model_file)
-
+def download():
     # download vae
     vae_folder = "models/vae"
     vae_path = os.path.join(vae_folder, "ae.sft")
@@ -375,7 +339,6 @@ def resolve_path_without_quotes(p):
     return norm_path
 
 def gen_sh(
-    base_model,
     output_name,
     resolution,
     seed,
@@ -414,16 +377,8 @@ def gen_sh(
 
 
     #######################################################
-    model_config = models[base_model]
-    model_file = model_config["file"]
-    repo = model_config["repo"]
-    if base_model == "flux-dev" or base_model == "flux-schnell":
-        model_folder = "models/unet"
-    else:
-        model_folder = f"models/unet/{repo}"
-    model_path = os.path.join(model_folder, model_file)
-    pretrained_model_path = resolve_path(model_path)
-
+    # Hardcoded model paths for runwayml/stable-diffusion-v1-5
+    pretrained_model_path = BASE_MODEL
     clip_path = resolve_path("models/clip/clip_l.safetensors")
     t5_path = resolve_path("models/clip/t5xxl_fp16.safetensors")
     ae_path = resolve_path("models/vae/ae.sft")
@@ -509,7 +464,7 @@ optimizer_args = []
 optimizer_type = \"AdamW8bit\"
 output_dir = \"{output_dir}\"
 output_name = \"{output_name}\"
-pretrained_model_name_or_path = \"runwayml/stable-diffusion-v1-5\"
+pretrained_model_name_or_path = \"{BASE_MODEL}\"
 prior_loss_weight = 1
 resolution = \"{resolution},{resolution}\"
 sample_sampler = \"euler_a\"
@@ -549,7 +504,6 @@ def get_samples(lora_name):
         return []
 
 def start_training(
-    base_model,
     lora_name,
     train_script,
     train_config,
@@ -565,7 +519,7 @@ def start_training(
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
 
-    download(base_model)
+    download()
 
     file_type = "sh"
     if sys.platform == "win32":
@@ -613,7 +567,7 @@ def start_training(
     with open(sample_prompts_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
     sample_prompts = [line.strip() for line in lines if len(line.strip()) > 0 and line[0] != "#"]
-    md = readme(base_model, lora_name, concept_sentence, sample_prompts)
+    md = readme(lora_name, concept_sentence, sample_prompts)
     readme_path = resolve_path_without_quotes(f"outputs/{output_name}/README.md")
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(md)
@@ -622,7 +576,6 @@ def start_training(
 
 
 def update(
-    base_model,
     lora_name,
     resolution,
     seed,
@@ -640,7 +593,6 @@ def update(
     output_name = slugify(lora_name)
     dataset_folder = str(f"datasets/{output_name}")
     sh = gen_sh(
-        base_model,
         output_name,
         resolution,
         seed,
@@ -895,10 +847,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                         placeholder="uncommon word like p3rs0n or trtcrd, or sentence like 'in the style of CNSTLL'",
                         interactive=True,
                     )
-                    model_names = list(models.keys())
-                    print(f"model_names={model_names}")
-                    base_model = gr.Dropdown(label="Base model (edit the models.yaml file to add more to this list)", choices=model_names, value=model_names[0])
-
                     max_train_steps = gr.Number(value=1600, precision=0, label="Max Train Steps", interactive=True)
                     sample_prompts = gr.Textbox("", lines=5, label="Sample Image Prompts (Separate with new lines)", interactive=True)
                     resolution = gr.Number(value=512, precision=0, label="Resize dataset images")
@@ -995,7 +943,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                     upload_button.click(
                         fn=upload_hf,
                         inputs=[
-                            base_model,
                             lora_rows,
                             repo_owner,
                             repo_name,
@@ -1013,7 +960,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
     dataset_folder = gr.State()
 
     listeners = [
-        base_model,
         lora_name,
         resolution,
         seed,
@@ -1048,7 +994,7 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
     start.click(fn=create_dataset, inputs=[dataset_folder, resolution, images] + caption_list, outputs=dataset_folder).then(
         fn=start_training,
         inputs=[
-            base_model,
+
             lora_name,
             train_script,
             train_config,
