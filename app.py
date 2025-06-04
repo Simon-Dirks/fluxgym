@@ -215,10 +215,16 @@ def create_dataset(destination_folder, *inputs):
     images = inputs[0]
     if not os.path.exists(destination_folder):
         os.makedirs(destination_folder)
-
+    
+    # Create the nested folder with 20_ prefix
+    folder_name = os.path.basename(destination_folder)
+    nested_folder = os.path.join(destination_folder, f"20_{folder_name}")
+    if not os.path.exists(nested_folder):
+        os.makedirs(nested_folder)
+    
     for index, image in enumerate(images):
-        # copy the images to the datasets folder
-        new_image_path = shutil.copy(image, destination_folder)
+        # copy the images to the nested folder
+        new_image_path = shutil.copy(image, nested_folder)
 
         # if it's a caption text file skip the next bit
         ext = os.path.splitext(new_image_path)[-1].lower()
@@ -229,12 +235,11 @@ def create_dataset(destination_folder, *inputs):
         resize_image(new_image_path, new_image_path, RESOLUTION)
 
         # copy the captions
-
         original_caption = inputs[index + 1]
 
         image_file_name = os.path.basename(new_image_path)
         caption_file_name = os.path.splitext(image_file_name)[0] + ".txt"
-        caption_path = resolve_path_without_quotes(os.path.join(destination_folder, caption_file_name))
+        caption_path = resolve_path_without_quotes(os.path.join(nested_folder, caption_file_name))
         print(f"image_path={new_image_path}, caption_path = {caption_path}, original_caption={original_caption}")
         # if caption_path exists, do not write
         if os.path.exists(caption_path):
@@ -244,7 +249,7 @@ def create_dataset(destination_folder, *inputs):
             with open(caption_path, 'w') as file:
                 file.write(original_caption)
 
-    print(f"destination_folder {destination_folder}")
+    print(f"destination_folder {destination_folder}, nested_folder {nested_folder}")
     return destination_folder
 
 
