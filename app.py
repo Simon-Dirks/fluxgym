@@ -23,6 +23,7 @@ import toml
 import re
 MAX_IMAGES = 150
 BASE_MODEL = "runwayml/stable-diffusion-v1-5"
+RESOLUTION = 512
 
 
 def readme(lora_name, instance_prompt, sample_prompts):
@@ -209,7 +210,7 @@ def resize_image(image_path, output_path, size):
         img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         img_resized.save(output_path)
 
-def create_dataset(destination_folder, size, *inputs):
+def create_dataset(destination_folder, *inputs):
     print("Creating dataset")
     images = inputs[0]
     if not os.path.exists(destination_folder):
@@ -225,7 +226,7 @@ def create_dataset(destination_folder, size, *inputs):
             continue
 
         # resize the images
-        resize_image(new_image_path, new_image_path, size)
+        resize_image(new_image_path, new_image_path, RESOLUTION)
 
         # copy the captions
 
@@ -340,20 +341,11 @@ def resolve_path_without_quotes(p):
 
 def gen_sh(
     output_name,
-    resolution,
-    seed,
-    workers,
-    learning_rate,
-    network_dim,
-    save_every_n_epochs,
-    timestep_sampling,
-    guidance_scale,
     sample_prompts,
-    max_train_steps,
-    *advanced_components
+    max_train_steps
 ):
 
-    print(f"gen_sh: network_dim:{network_dim}, max_train_steps={max_train_steps}, save_every_n_epochs={save_every_n_epochs}, timestep_sampling={timestep_sampling}, guidance_scale={guidance_scale}, sample_prompts={sample_prompts}")
+    print(f"gen_sh: max_train_steps={max_train_steps}, sample_prompts={sample_prompts}")
 
     output_dir = resolve_path(f"outputs/{output_name}")
     sample_prompts_path = resolve_path(f"outputs/{output_name}/sample_prompts.txt")
@@ -393,35 +385,12 @@ def gen_sh(
    
 
 
-    ############# Advanced args ########################
-    global advanced_component_ids
-    global original_advanced_component_values
-   
-    # check dirty
-    print(f"original_advanced_component_values = {original_advanced_component_values}")
-    advanced_flags = []
-    for i, current_value in enumerate(advanced_components):
-#        print(f"compare {advanced_component_ids[i]}: old={original_advanced_component_values[i]}, new={current_value}")
-        if original_advanced_component_values[i] != current_value:
-            # dirty
-            if current_value == True:
-                # Boolean
-                advanced_flags.append(advanced_component_ids[i])
-            else:
-                # string
-                advanced_flags.append(f"{advanced_component_ids[i]} {current_value}")
-
-    if len(advanced_flags) > 0:
-        advanced_flags_str = f" {line_break}\n  ".join(advanced_flags)
-        sh = sh + "\n  " + advanced_flags_str
 
     return sh
 
 def gen_toml(
   dataset_folder,
-  resolution,
-  class_tokens,
-  save_every_n_epochs,
+  concept_sentence,
   output_name,
   max_train_steps
 ):
@@ -466,9 +435,9 @@ output_dir = \"{output_dir}\"
 output_name = \"{output_name}\"
 pretrained_model_name_or_path = \"{BASE_MODEL}\"
 prior_loss_weight = 1
-resolution = \"{resolution},{resolution}\"
+resolution = \"{RESOLUTION},{RESOLUTION}\"
 sample_sampler = \"euler_a\"
-save_every_n_epochs = {save_every_n_epochs}
+save_every_n_epochs = 1
 save_model_as = \"safetensors\"
 save_precision = \"fp16\"
 text_encoder_lr = []
@@ -577,40 +546,20 @@ def start_training(
 
 def update(
     lora_name,
-    resolution,
-    seed,
-    workers,
-    class_tokens,
-    learning_rate,
-    network_dim,
-    save_every_n_epochs,
-    timestep_sampling,
-    guidance_scale,
+    concept_sentence,
     sample_prompts,
     max_train_steps,
-    *advanced_components,
 ):
     output_name = slugify(lora_name)
     dataset_folder = str(f"datasets/{output_name}")
     sh = gen_sh(
         output_name,
-        resolution,
-        seed,
-        workers,
-        learning_rate,
-        network_dim,
-        save_every_n_epochs,
-        timestep_sampling,
-        guidance_scale,
         sample_prompts,
-        max_train_steps,
-        *advanced_components,
+        max_train_steps
     )
     toml = gen_toml(
         dataset_folder,
-        resolution,
-        class_tokens,
-        save_every_n_epochs,
+        concept_sentence,
         output_name,
         max_train_steps
     )
@@ -635,99 +584,6 @@ def refresh_publish_tab():
     loras = get_loras()
     return gr.Dropdown(label="Trained LoRAs", choices=loras)
 
-def init_advanced():
-    # if basic_args
-    basic_args = {
-        'pretrained_model_name_or_path',
-        'clip_l',
-        't5xxl',
-        'ae',
-        'cache_latents_to_disk',
-        'save_model_as',
-        'sdpa',
-        'persistent_data_loader_workers',
-        'max_data_loader_n_workers',
-        'seed',
-        'gradient_checkpointing',
-        'mixed_precision',
-        'save_precision',
-        'network_module',
-        'network_dim',
-        'learning_rate',
-        'cache_text_encoder_outputs',
-        'cache_text_encoder_outputs_to_disk',
-        'fp8_base',
-        'save_every_n_epochs',
-        'dataset_config',
-        'output_dir',
-        'output_name',
-        'timestep_sampling',
-        'discrete_flow_shift',
-        'model_prediction_type',
-        'guidance_scale',
-        'loss_type',
-        'optimizer_type',
-        'optimizer_args',
-        'lr_scheduler',
-        'sample_prompts',
-        'max_grad_norm',
-        'split_mode',
-        'network_args'
-    }
-
-    # generate a UI config
-    # if not in basic_args, create a simple form
-    parser = train_network.setup_parser()
-    flux_train_utils.add_flux_train_arguments(parser)
-    args_info = {}
-    for action in parser._actions:
-        if action.dest != 'help':  # Skip the default help argument
-            # if the dest is included in basic_args
-            args_info[action.dest] = {
-                "action": action.option_strings,  # Option strings like '--use_8bit_adam'
-                "type": action.type,              # Type of the argument
-                "help": action.help,              # Help message
-                "default": action.default,        # Default value, if any
-                "required": action.required       # Whether the argument is required
-            }
-    temp = []
-    for key in args_info:
-        temp.append({ 'key': key, 'action': args_info[key] })
-    temp.sort(key=lambda x: x['key'])
-    advanced_component_ids = []
-    advanced_components = []
-    for item in temp:
-        key = item['key']
-        action = item['action']
-        if key in basic_args:
-            print("")
-        else:
-            action_type = str(action['type'])
-            component = None
-            with gr.Column(min_width=300):
-                if action_type == "None":
-                    # radio
-                    component = gr.Checkbox()
-    #            elif action_type == "<class 'str'>":
-    #                component = gr.Textbox()
-    #            elif action_type == "<class 'int'>":
-    #                component = gr.Number(precision=0)
-    #            elif action_type == "<class 'float'>":
-    #                component = gr.Number()
-    #            elif "int_or_float" in action_type:
-    #                component = gr.Number()
-                else:
-                    component = gr.Textbox(value="")
-                if component != None:
-                    component.interactive = True
-                    component.elem_id = action['action'][0]
-                    component.label = component.elem_id
-                    component.elem_classes = ["advanced"]
-                if action['help'] != None:
-                    component.info = action['help']
-            advanced_components.append(component)
-            advanced_component_ids.append(component.elem_id)
-    return advanced_components, advanced_component_ids
 
 
 theme = gr.themes.Monochrome(
@@ -849,7 +705,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                     )
                     max_train_steps = gr.Number(value=1600, precision=0, label="Max Train Steps", interactive=True)
                     sample_prompts = gr.Textbox("", lines=5, label="Sample Image Prompts (Separate with new lines)", interactive=True)
-                    resolution = gr.Number(value=512, precision=0, label="Resize dataset images")
                 with gr.Column():
                     gr.Markdown(
                         """# Step 2. Dataset
@@ -902,23 +757,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                     output_components.append(start)
                     train_script = gr.Textbox(label="Train script", max_lines=100, interactive=True)
                     train_config = gr.Textbox(label="Train config", max_lines=100, interactive=True)
-            with gr.Accordion("Advanced options", elem_id='advanced_options', open=False):
-                with gr.Row():
-                    with gr.Column(min_width=300):
-                        seed = gr.Number(label="--seed", info="Seed", value=42, interactive=True)
-                    with gr.Column(min_width=300):
-                        workers = gr.Number(label="--max_data_loader_n_workers", info="Number of Workers", value=2, interactive=True)
-                    with gr.Column(min_width=300):
-                        learning_rate = gr.Textbox(label="--learning_rate", info="Learning Rate", value="8e-4", interactive=True)
-                    with gr.Column(min_width=300):
-                        save_every_n_epochs = gr.Number(label="--save_every_n_epochs", info="Save every N epochs", value=4, interactive=True)
-                    with gr.Column(min_width=300):
-                        guidance_scale = gr.Number(label="--guidance_scale", info="Guidance Scale", value=1.0, interactive=True)
-                    with gr.Column(min_width=300):
-                        timestep_sampling = gr.Textbox(label="--timestep_sampling", info="Timestep Sampling", value="shift", interactive=True)
-                    with gr.Column(min_width=300):
-                        network_dim = gr.Number(label="--network_dim", info="LoRA Rank", value=4, minimum=4, maximum=128, step=4, interactive=True)
-                    advanced_components, advanced_component_ids = init_advanced()
             with gr.Row():
                 terminal = LogsView(label="Train log", elem_id="terminal")
             with gr.Row():
@@ -961,21 +799,10 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
 
     listeners = [
         lora_name,
-        resolution,
-        seed,
-        workers,
         concept_sentence,
-        learning_rate,
-        network_dim,
-        save_every_n_epochs,
-        timestep_sampling,
-        guidance_scale,
         sample_prompts,
-        max_train_steps,
-        *advanced_components
+        max_train_steps
     ]
-    advanced_component_ids = [x.elem_id for x in advanced_components]
-    original_advanced_component_values = [comp.value for comp in advanced_components]
     images.upload(
         load_captioning,
         inputs=[images, concept_sentence],
@@ -991,7 +818,7 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
         outputs=[captioning_area, start]
     )
     concept_sentence.change(fn=update_sample, inputs=[concept_sentence], outputs=sample_prompts)
-    start.click(fn=create_dataset, inputs=[dataset_folder, resolution, images] + caption_list, outputs=dataset_folder).then(
+    start.click(fn=create_dataset, inputs=[dataset_folder, images] + caption_list, outputs=dataset_folder).then(
         fn=start_training,
         inputs=[
 
@@ -1004,7 +831,7 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
     )
     do_captioning.click(fn=run_captioning, inputs=[images, concept_sentence] + caption_list, outputs=caption_list)
     demo.load(fn=loaded, js=js, outputs=[hf_token, hf_login, hf_logout, repo_owner])
-    refresh.click(update, inputs=listeners, outputs=[train_script, train_config, dataset_folder])
+    refresh.click(update, inputs=[lora_name, concept_sentence, sample_prompts, max_train_steps], outputs=[train_script, train_config, dataset_folder])
 if __name__ == "__main__":
     cwd = os.path.dirname(os.path.abspath(__file__))
     demo.launch(debug=True, show_error=True, allowed_paths=[cwd])
