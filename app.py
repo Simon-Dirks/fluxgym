@@ -152,10 +152,8 @@ def create_dataset(destination_folder, *inputs, max_train_steps=1600):
     image_files = [img for img in images if not img.endswith('.txt')]
     num_images = len(image_files)
     
-    if num_images > 0:
-        repeat_images_during_training = max(1, round(max_train_steps / num_images))
-    else:
-        repeat_images_during_training = 20
+    # TODO: Calculate repeat images automatically, or add it as a UI field?
+    repeat_images_during_training = 40
     
     print(f"Number of images: {num_images}, max_train_steps: {max_train_steps}, repeat_value: {repeat_images_during_training}")
     
