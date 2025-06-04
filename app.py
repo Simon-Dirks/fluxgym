@@ -143,15 +143,24 @@ def resize_image(image_path, output_path, size):
         img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         img_resized.save(output_path)
 
-def create_dataset(destination_folder, *inputs):
+def create_dataset(destination_folder, *inputs, max_train_steps=1600):
     print("Creating dataset")
     images = inputs[0]
     if not os.path.exists(destination_folder):
         os.makedirs(destination_folder)
     
-    # Create the nested folder with 20_ prefix
+    image_files = [img for img in images if not img.endswith('.txt')]
+    num_images = len(image_files)
+    
+    if num_images > 0:
+        repeat_images_during_training = max(1, round(max_train_steps / num_images))
+    else:
+        repeat_images_during_training = 20
+    
+    print(f"Number of images: {num_images}, max_train_steps: {max_train_steps}, repeat_value: {repeat_images_during_training}")
+    
     folder_name = os.path.basename(destination_folder)
-    nested_folder = os.path.join(destination_folder, f"20_{folder_name}")
+    nested_folder = os.path.join(destination_folder, f"{repeat_images_during_training}_{folder_name}")
     if not os.path.exists(nested_folder):
         os.makedirs(nested_folder)
     
@@ -255,14 +264,12 @@ def resolve_path_without_quotes(p):
 
 def gen_sh(
     output_name,
-    sample_prompts,
     max_train_steps
 ):
 
-    print(f"gen_sh: max_train_steps={max_train_steps}, sample_prompts={sample_prompts}")
+    print(f"gen_sh: max_train_steps={max_train_steps}")
 
     output_dir = resolve_path(f"outputs/{output_name}")
-    sample_prompts_path = resolve_path(f"outputs/{output_name}/sample_prompts.txt")
 
     line_break = "\\"
     file_type = "sh"
@@ -355,21 +362,11 @@ def get_loras():
     except Exception as e:
         return []
 
-def get_samples(lora_name):
-    output_name = slugify(lora_name)
-    try:
-        samples_path = resolve_path_without_quotes(f"outputs/{output_name}/sample")
-        files = [os.path.join(samples_path, file) for file in os.listdir(samples_path)]
-        files.sort(key=lambda file: os.path.getctime(file), reverse=True)
-        return files
-    except:
-        return []
 
 def start_training(
     lora_name,
     train_script,
     train_config,
-    sample_prompts,
 ):
     # write custom script and toml
     if not os.path.exists("models"):
@@ -397,10 +394,6 @@ def start_training(
         file.write(train_config)
     gr.Info(f"Generated dataset.toml")
 
-    sample_prompts_path = resolve_path_without_quotes(f"outputs/{output_name}/sample_prompts.txt")
-    with open(sample_prompts_path, 'w', encoding='utf-8') as file:
-        file.write(sample_prompts)
-    gr.Info(f"Generated sample_prompts.txt")
 
     # Train
     if sys.platform == "win32":
@@ -424,14 +417,12 @@ def start_training(
 def update(
     lora_name,
     concept_sentence,
-    sample_prompts,
     max_train_steps,
 ):
     output_name = slugify(lora_name)
     dataset_folder = str(f"datasets/{output_name}")
     sh = gen_sh(
         output_name,
-        sample_prompts,
         max_train_steps
     )
     toml = gen_toml(
@@ -454,8 +445,7 @@ def loaded():
     else:
         return gr.update(value=""), gr.update(visible=True), gr.update(visible=False), gr.update(value="", visible=False)
 
-def update_sample(concept_sentence):
-    return gr.update(value=concept_sentence)
+# Removed update_sample function as part of removing sampling functionality
 
 def refresh_publish_tab():
     loras = get_loras()
@@ -581,7 +571,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                         interactive=True,
                     )
                     max_train_steps = gr.Number(value=1600, precision=0, label="Max Train Steps", interactive=True)
-                    sample_prompts = gr.Textbox("", lines=5, label="Sample Image Prompts (Separate with new lines)", interactive=True)
                 with gr.Column():
                     gr.Markdown(
                         """# Step 2. Dataset
@@ -636,8 +625,7 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
                     train_config = gr.Textbox(label="Train config", max_lines=100, interactive=True)
             with gr.Row():
                 terminal = LogsView(label="Train log", elem_id="terminal")
-            with gr.Row():
-                gallery = gr.Gallery(get_samples, inputs=[lora_name], label="Samples", every=10, columns=6)
+            # Gallery row removed
 
         with gr.TabItem("Publish") as publish_tab:
             hf_token = gr.Textbox(label="Huggingface Token")
@@ -677,7 +665,6 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
     listeners = [
         lora_name,
         concept_sentence,
-        sample_prompts,
         max_train_steps
     ]
     images.upload(
@@ -694,21 +681,18 @@ with gr.Blocks(elem_id="app", theme=theme, css=css, fill_width=True) as demo:
         hide_captioning,
         outputs=[captioning_area, start]
     )
-    concept_sentence.change(fn=update_sample, inputs=[concept_sentence], outputs=sample_prompts)
-    start.click(fn=create_dataset, inputs=[dataset_folder, images] + caption_list, outputs=dataset_folder).then(
+    start.click(fn=create_dataset, inputs=[dataset_folder, images] + caption_list + [max_train_steps], outputs=dataset_folder).then(
         fn=start_training,
         inputs=[
-
             lora_name,
             train_script,
             train_config,
-            sample_prompts,
         ],
         outputs=terminal,
     )
     do_captioning.click(fn=run_captioning, inputs=[images, concept_sentence] + caption_list, outputs=caption_list)
     demo.load(fn=loaded, js=js, outputs=[hf_token, hf_login, hf_logout, repo_owner])
-    refresh.click(update, inputs=[lora_name, concept_sentence, sample_prompts, max_train_steps], outputs=[train_script, train_config, dataset_folder])
+    refresh.click(update, inputs=[lora_name, concept_sentence, max_train_steps], outputs=[train_script, train_config, dataset_folder])
 if __name__ == "__main__":
     cwd = os.path.dirname(os.path.abspath(__file__))
     demo.launch(debug=True, show_error=True, allowed_paths=[cwd])
