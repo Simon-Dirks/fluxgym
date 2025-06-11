@@ -31,6 +31,8 @@ RUN pip install --no-cache-dir -r ./requirements.txt
 # Install Torch, Torchvision, and Torchaudio for CUDA 12.2
 RUN pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu122/torch_stable.html
 
+RUN pip install bitsandbytes --upgrade
+
 RUN chown -R appuser:appuser /app
 
 # delete redundant requirements.txt and sd-scripts directory within the container
