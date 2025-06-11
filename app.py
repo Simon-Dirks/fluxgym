@@ -20,7 +20,20 @@ from slugify import slugify
 from transformers import AutoProcessor, AutoModelForCausalLM
 from gradio_logsview import LogsView, LogsViewRunner
 from huggingface_hub import hf_hub_download, HfApi
-from library import flux_train_utils, huggingface_util
+# Try different import approaches to ensure the library module is found
+try:
+    from library import flux_train_utils, huggingface_util
+except ImportError:
+    try:
+        # Try absolute import path
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'sd-scripts'))
+        from sd_scripts.library import flux_train_utils, huggingface_util
+    except ImportError:
+        # Final fallback - direct import from sd-scripts directory
+        sd_scripts_dir = '/app/sd-scripts' if os.path.exists('/app/sd-scripts') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sd-scripts')
+        sys.path.insert(0, sd_scripts_dir)
+        from library import flux_train_utils, huggingface_util
 from argparse import Namespace
 import train_network
 import toml
