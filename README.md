@@ -1,8 +1,7 @@
 ---
 title: stable-diffusion-gym
-app_file: app.py
-sdk: gradio
-sdk_version: 5.23.2
+sdk: docker
+app_port: 7860
 ---
 # Flux Gym
 
