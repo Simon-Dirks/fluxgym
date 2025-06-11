@@ -44,9 +44,6 @@ USER appuser
 # Copy fluxgym application code
 COPY . ./fluxgym
 
-# Create symbolic link to library module
-RUN ln -sf /app/sd-scripts/library /app/fluxgym/library
-
 EXPOSE 7860
 
 ENV GRADIO_SERVER_NAME="0.0.0.0"
