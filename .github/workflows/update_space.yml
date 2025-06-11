@@ -27,8 +27,5 @@ jobs:
       - name: Log in to Hugging Face
         run: python -c 'import huggingface_hub; huggingface_hub.login(token="${{ secrets.hf_token }}")'
 
-      - name: Create .gitattributes to include sd-scripts
-        run: echo "sd-scripts/ export-ignore=false" > .gitattributes
-
       - name: Deploy to Spaces
         run: gradio deploy
