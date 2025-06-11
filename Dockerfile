@@ -33,17 +33,19 @@ RUN pip install torch torchvision torchaudio --extra-index-url https://download.
 
 RUN pip install bitsandbytes --upgrade
 
-RUN chown -R appuser:appuser /app
-
 # delete redundant requirements.txt and sd-scripts directory within the container
 RUN rm -r ./sd-scripts
 RUN rm ./requirements.txt
 
-#Run application as non-root
-USER appuser
-
 # Copy fluxgym application code
 COPY . ./fluxgym
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/fluxgym/models /app/fluxgym/outputs /app/fluxgym/datasets
+RUN chown -R appuser:appuser /app
+
+# Run application as non-root
+USER appuser
 
 EXPOSE 7860
 
