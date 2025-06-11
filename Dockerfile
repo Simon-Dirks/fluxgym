@@ -35,7 +35,7 @@ RUN pip install bitsandbytes --upgrade
 RUN chown -R appuser:appuser /app
 
 # delete redundant requirements.txt and sd-scripts directory within the container
-RUN rm -r ./sd-scripts
+# RUN rm -r ./sd-scripts
 RUN rm ./requirements.txt
 
 #Run application as non-root
