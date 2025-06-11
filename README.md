@@ -1,3 +1,8 @@
+---
+title: stable-diffusion-gym
+sdk: docker
+app_port: 7860
+---
 # Flux Gym
 
 Dead simple web UI for training FLUX LoRA **with LOW VRAM (12GB/16GB/20GB) support.**
