@@ -3,7 +3,19 @@ import sys
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 os.environ['GRADIO_ANALYTICS_ENABLED'] = '0'
 sys.path.insert(0, os.getcwd())
-sys.path.append(os.path.join(os.path.dirname(__file__), 'sd-scripts'))
+
+# Add paths for sd-scripts in different possible locations
+possible_sd_script_paths = [
+    os.path.join(os.path.dirname(__file__), 'sd-scripts'),  # Local development
+    '/app/fluxgym/sd-scripts',  # Docker container with copied sd-scripts
+    '/app/sd-scripts'  # Docker container with original sd-scripts
+]
+
+for path in possible_sd_script_paths:
+    if os.path.exists(path):
+        sys.path.append(path)
+        print(f"Added {path} to sys.path")
+
 import subprocess
 import gradio as gr
 from PIL import Image
@@ -18,18 +30,23 @@ from gradio_logsview import LogsView, LogsViewRunner
 from huggingface_hub import hf_hub_download, HfApi
 # Try different import approaches to ensure the library module is found
 try:
+    # First try: Direct import from library
     from library import flux_train_utils, huggingface_util
 except ImportError:
     try:
-        # Try absolute import path
-        import sys
-        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'sd-scripts'))
-        from sd_scripts.library import flux_train_utils, huggingface_util
+        # Second try: Import from sd-scripts library
+        for path in possible_sd_script_paths:
+            if os.path.exists(path):
+                library_path = os.path.join(path, 'library')
+                if os.path.exists(library_path):
+                    sys.path.insert(0, path)
+                    print(f"Trying to import from {library_path}")
+                    from library import flux_train_utils, huggingface_util
+                    break
+        else:
+            raise ImportError("Could not find library in any sd-scripts directory")
     except ImportError:
-        # Final fallback - direct import from sd-scripts directory
-        sd_scripts_dir = '/app/sd-scripts' if os.path.exists('/app/sd-scripts') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sd-scripts')
-        sys.path.insert(0, sd_scripts_dir)
-        from library import flux_train_utils, huggingface_util
+        raise ImportError("Failed to import required modules. Make sure sd-scripts is properly installed.")
 from argparse import Namespace
 import train_network
 import toml

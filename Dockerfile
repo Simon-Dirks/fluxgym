@@ -32,17 +32,18 @@ RUN pip install --no-cache-dir -r ./requirements.txt
 RUN pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu122/torch_stable.html
 RUN pip install bitsandbytes --upgrade
 
-RUN chown -R appuser:appuser /app
-
-# delete redundant requirements.txt and sd-scripts directory within the container
-RUN rm -r ./sd-scripts
+# Remove redundant requirements.txt
 RUN rm ./requirements.txt
-
-#Run application as non-root
-USER appuser
 
 # Copy fluxgym application code
 COPY . ./fluxgym
+
+# Copy sd-scripts to the fluxgym directory
+RUN cp -r /app/sd-scripts /app/fluxgym/
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 7860
 
