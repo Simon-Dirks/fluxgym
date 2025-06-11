@@ -3,7 +3,7 @@ name: Run Python script
 on:
   push:
     branches:
-      - feature/stable-diffusion
+      - feature/stable-diffusion-huggingface
 
 jobs:
   build:
